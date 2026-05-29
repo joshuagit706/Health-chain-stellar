@@ -25,16 +25,22 @@ import { WorkingHoursDto } from './dto/working-hours.dto';
 import { RiderEntity } from './entities/rider.entity';
 import { RiderStatus } from './enums/rider-status.enum';
 
-const ALLOWED_STATUS_TRANSITIONS: Record<RiderStatus, RiderStatus[]> = {
-  [RiderStatus.OFFLINE]: [RiderStatus.AVAILABLE],
-  [RiderStatus.AVAILABLE]: [
-    RiderStatus.OFFLINE,
-    RiderStatus.BUSY,
-    RiderStatus.ON_DELIVERY,
-  ],
-  [RiderStatus.BUSY]: [RiderStatus.AVAILABLE, RiderStatus.OFFLINE],
-  [RiderStatus.ON_DELIVERY]: [RiderStatus.AVAILABLE, RiderStatus.OFFLINE],
-};
+function haversineKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 @Injectable()
 export class RidersService {
@@ -284,12 +290,7 @@ export class RidersService {
       if (rider.latitude === null || rider.longitude === null) {
         return false;
       }
-      const latKm = Math.abs(rider.latitude - latitude) * 111;
-      const lngKm =
-        Math.abs(rider.longitude - longitude) *
-        111 *
-        Math.cos((latitude * Math.PI) / 180);
-      return Math.sqrt(latKm ** 2 + lngKm ** 2) <= radiusKm;
+      return haversineKm(latitude, longitude, rider.latitude, rider.longitude) <= radiusKm;
     });
 
     return {
