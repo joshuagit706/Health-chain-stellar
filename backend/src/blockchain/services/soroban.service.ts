@@ -358,47 +358,27 @@ export class SorobanService {
         );
       }
 
-      if (!(txState.emittedEvents & TX_EVENT_BIT.FINAL)) {
-        txState.emittedEvents |= TX_EVENT_BIT.FINAL;
-        await this.txStateRepo.save(txState);
-        this.eventEmitter.emit(
-          'blockchain.tx.final',
-          new TxFinalEvent(
-            callback.transactionHash,
-            callback.contractMethod,
-            confirmationState.confirmations,
-            txState.metadata,
-          ),
-        );
-      } else {
-        await this.txStateRepo.save(txState);
+      if (state.status === 'confirmed' || state.status === 'final') {
+        this.logger.log('blockchain.transaction.confirmed', {
+          transactionHash: callback.transactionHash,
+          status: state.status,
+          timestamp: new Date().toISOString(),
+        });
       }
-    } else {
-      // Still accumulating confirmations
-      txState.status = OnChainTxStatus.CONFIRMED;
-
-      if (!(txState.emittedEvents & TX_EVENT_BIT.CONFIRMED)) {
-        txState.emittedEvents |= TX_EVENT_BIT.CONFIRMED;
-        await this.txStateRepo.save(txState);
-        this.eventEmitter.emit(
-          'blockchain.tx.confirmed',
-          new TxConfirmedEvent(
-            callback.transactionHash,
-            callback.contractMethod,
-            confirmationState.confirmations,
-            confirmationState.finalityThreshold,
-            txState.metadata,
-          ),
-        );
-      } else {
-        await this.txStateRepo.save(txState);
-      }
+    } else if (callback.status === 'failed') {
+      this.logger.warn('blockchain.transaction.failed', {
+        transactionHash: callback.transactionHash,
+        status: 'failed',
+        error: callback.details ?? null,
+        timestamp: new Date().toISOString(),
+      });
+    } else if (callback.status === 'pending') {
+      this.logger.log('blockchain.transaction.pending', {
+        transactionHash: callback.transactionHash,
+        status: 'pending',
+        timestamp: new Date().toISOString(),
+      });
     }
-
-    this.logger.log(
-      `Finality check: tx=${callback.transactionHash} confirmations=${confirmationState.confirmations}/${confirmationState.finalityThreshold} status=${confirmationState.status}`,
-      { eventId: callback.eventId },
-    );
   }
 
   /**
